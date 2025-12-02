@@ -1,0 +1,102 @@
+module TestCustomerLoyaltyProgram2ActionsLoops where
+
+import Daml.Script
+import CustomerLoyaltyProgram2
+import DA.Date (toDateUTC, date, Month(Jan), Month(Mar))
+import DA.Time (time)
+import DA.Optional (catOptionals)
+
+testActionsLoops: Script () 
+testActionsLoops = script do 
+    alice <- allocateParty "Alice"
+    bob <- allocateParty "Bob"
+    airline <- allocateParty "Epic Airlines"
+    
+    setTime (time (date 2023 Mar 01) 10 30 0)
+    now <- getTime 
+
+    -- Alice creates a blank CLPApplication
+    aliceCLPAppId <- submit alice do         
+        createCmd CLPApplication with  
+            customer = alice 
+            airline = airline 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+    -- Alice submits the application with details filled in
+    aliceCLPAppId <- submit alice do 
+        exerciseCmd aliceCLPAppId SubmitApplication 
+            with
+                appCustomer = alice 
+                appAirline = airline
+                customerId = "123"
+                customerName = "Alice"
+                customerAddress = "123 Main St ABCD"
+                customerEmail = "alice@wonderland.io"
+                customerPhone = Some " 01-555-555-1234"
+                timeStamp = now
+                customerDob = date 2000 Jan 05
+
+    -- Bob creates another blank application
+    bobCLPAppId <- submit bob do         
+        createCmd CLPApplication with  
+            customer = bob 
+            airline = airline 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+   -- Bob submits application with details filled in
+    bobCLPAppId <- submit bob do 
+        exerciseCmd bobCLPAppId SubmitApplication 
+            with
+                appCustomer = bob 
+                appAirline = airline
+                customerId = "234"
+                customerName = "Bob"
+                customerAddress = "123 Spring St EFGH"
+                customerEmail = "bob@nomansland.io"
+                customerPhone = Some " 01-555-555-5678"
+                timeStamp = now
+                customerDob = date 2010 Jan 05
+
+    -- airline queries for all the applications
+    allApplications <- query @CLPApplication airline
+    debug ("All aApplications: " <> show allApplications)
+
+    -- Extract all contract-ids from allApplications
+    let allApplicationCids = map fst allApplications
+    debug ("All application contract IDs: " <> show allApplicationCids)
+
+    -- Extract all customer-ids from contract payloads in allApplications
+    let allCustomerIds = map (\(_, app) -> app.id) allApplications
+    debug ("All customer IDs: " <> show allCustomerIds)
+
+    -- Create a new list allCidsAndIds of tuples (ContractId, Text) by pairing elements from allApplicationCids and allCustomerIds
+    let allCidsAndIds = zip allApplicationCids allCustomerIds
+    debug ("All contract IDs and customer IDs: " <> show allCidsAndIds)
+
+    -- The airline submits a transaction that exercises ReviewApplication choices on all the applications and returns a list of optional CLPAccounts created.
+    allAccountCidsOptional <- submit airline do
+        mapA (\(appCid, _) -> exerciseCmd appCid ReviewApplication) allCidsAndIds
+    debug ("All account contract IDs created (optional): " <> show allAccountCidsOptional)
+
+    -- Extract only the successfully created accounts (Some values), filtering out None values
+    let allAccountCids = catOptionals allAccountCidsOptional
+    debug ("All account contract IDs created: " <> show allAccountCids)
+
+    -- With the accounts created in the previous step, the airline now exercises the AddPoints choice and adds 1000 points to each account
+    allUpdatedAccountCids <- submit airline do
+        mapA (\accountCid -> exerciseCmd accountCid (AddPoints with additionalPoints = 1000)) allAccountCids
+    debug ("All updated account contract IDs after adding points: " <> show allUpdatedAccountCids)
+        
+    return ()

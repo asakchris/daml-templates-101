@@ -4,3 +4,5 @@ This is a simple DAML template project that demonstrates the basics of creating 
 Install Daml SDK - https://docs.daml.com/getting-started/installation.html
 Create new project - daml new daml-templates-101
 Open project in VS Code - daml studio
+
+https://github.com/digital-asset/certification-damlfundamentals-ledgerprogramming-lab-solution
