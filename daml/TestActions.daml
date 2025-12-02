@@ -1,0 +1,40 @@
+module TestActions where
+
+import Daml.Script
+import BankService
+import DA.Foldable (forA_, mapA_)
+
+testActions : Script ()
+testActions = script do
+  alice <- allocateParty "Alice"
+  bob <- allocateParty "Bob"
+  bank <- allocateParty "Bank"
+  
+  submitMulti [alice, bank] [] do
+    createCmd Account with
+      issuer = bank
+      owner = alice
+      name = "Alice"
+      balance = 10.0
+
+  submitMulti [alice, bank] [] do
+    createCmd Account with
+      issuer = bank
+      owner = alice
+      name = "Alice"
+      balance = 100.0
+
+  submitMulti [bob, bank] [] do
+    createCmd Account with
+      issuer = bank
+      owner = bob
+      name = "Bob"
+      balance = 50.0
+
+  aliceAccounts <- query @Account alice >>= debug
+  debug "----"
+
+  accounts <- query @Account bank
+  mapA_ (\x -> debug $ x) accounts
+  debug "----"
+  forA_ accounts (\x -> debug x)
