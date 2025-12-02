@@ -1,0 +1,87 @@
+module CustomerLoyaltyProgram2 where
+
+template CLPAccount
+  with
+    customer : Party
+    airline : Party
+    id: Text
+    name : Text
+    address : Text
+    email : Text
+    phone : Optional Text
+    timestamp : Time
+    dob : Date
+    points : Int
+  where
+      signatory airline, customer
+      key (airline, id) : (Party, Text)
+      maintainer key._1
+
+      choice AddPoints : ContractId CLPAccount
+        with
+          additionalPoints : Int
+        controller airline
+        do
+          create this with
+            points = points + additionalPoints
+
+template CLPApplication
+  with
+    customer : Party
+    airline : Party
+    id: Text
+    name : Text
+    address : Text
+    email : Text
+    phone : Optional Text
+    timestamp : Time
+    dob : Date
+  where
+      signatory customer
+      observer airline
+
+      choice SubmitApplication : ContractId CLPApplication
+        with
+          appCustomer : Party
+          appAirline : Party
+          customerId : Text
+          customerName : Text
+          customerAddress : Text
+          customerEmail : Text
+          customerPhone : Optional Text
+          timeStamp : Time
+          customerDob : Date
+        controller customer
+        do
+          create this with
+            customer = appCustomer
+            airline = appAirline
+            id = customerId
+            name = customerName
+            address = customerAddress
+            email = customerEmail
+            phone = customerPhone
+            timestamp = timeStamp
+            dob = customerDob
+
+      choice ReviewApplication : Optional (ContractId CLPAccount)
+        with
+        controller airline
+        do
+          existingAccount <- lookupByKey @CLPAccount (airline, id)
+          case existingAccount of
+            Some _ -> return None  -- Account already exists, reject application
+            None -> do
+              -- No existing account, create new one
+              accountId <- create CLPAccount with
+                customer = customer
+                airline = airline
+                id = id
+                name = name
+                address = address
+                email = email
+                phone = phone
+                timestamp = timestamp
+                dob = dob
+                points = 0
+              return (Some accountId)

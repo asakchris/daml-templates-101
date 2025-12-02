@@ -1,0 +1,93 @@
+module TestCustomerLoyaltyProgram2AddPoints where
+
+import Daml.Script
+import CustomerLoyaltyProgram2
+import DA.Date (toDateUTC, date, Month(Jan), Month(Mar))
+import DA.Time (time)
+
+testAddPointsToCLPAccount: Script ()
+testAddPointsToCLPAccount = script do
+    alice <- allocateParty "Alice"
+    bob <- allocateParty "Bob"
+    airline <- allocateParty "Epic Airlines"
+
+    setTime (time (date 2023 Mar 01) 10 30 0)
+    now <- getTime 
+    
+    -- Alice submits a CLPApplication
+    aliceCLPAppId <- submit alice do         
+        createCmd CLPApplication with  
+            customer = alice 
+            airline = airline 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+    
+    aliceCLPAppId <- submit alice do 
+        exerciseCmd aliceCLPAppId SubmitApplication 
+            with
+                appCustomer = alice 
+                appAirline = airline
+                customerId = "123"
+                customerName = "Alice"
+                customerAddress = "123 Main St ABCD"
+                customerEmail = "alice@wonderland.io"
+                customerPhone = Some " 01-555-555-1234"
+                timeStamp = now
+                customerDob = date 2000 Jan 05
+
+    -- Bob submits a CLPApplication
+    bobCLPAppId <- submit bob do         
+        createCmd CLPApplication with  
+            customer = bob 
+            airline = airline 
+            id = ""
+            name = ""
+            address = ""
+            email = ""
+            phone = Some ""
+            timestamp = now 
+            dob = toDateUTC now
+
+    bobCLPAppId <- submit bob do 
+        exerciseCmd bobCLPAppId SubmitApplication
+            with
+                appCustomer = bob 
+                appAirline = airline
+                customerId = "456"
+                customerName = "Bob"
+                customerAddress = "456 Side St EFGH"
+                customerEmail = "bob@builder.io"
+                customerPhone = Some " 01-555-555-5678"
+                timeStamp = now
+                customerDob = date 1995 Jan 15
+
+    -- Airline reviews Alice's application and creates her CLPAccount with 0 points
+    aliceCLPAccountId <- submit airline do 
+        exerciseCmd aliceCLPAppId ReviewApplication
+
+    -- Airline reviews Bob's application and creates his CLPAccount with 0 points
+    bobCLPAccountId <- submit airline do 
+        exerciseCmd bobCLPAppId ReviewApplication
+
+    -- Query for all CLPAccount visible to the airline
+    accounts <- query @CLPAccount airline
+    debug ("All accounts visible to airline: " <> show (length accounts))
+    
+    -- Airline exercises AddPoints choice to add 100 points to the first account
+    -- Note: AddPoints is controlled by customer, so the first customer (Alice) exercises it
+    case accounts of
+        (accountCid, account) :: _ -> do
+            debug ("Adding 100 points to account: " <> account.name)
+            submit airline do
+                exerciseCmd accountCid AddPoints with additionalPoints = 100
+            return()
+        [] -> do
+            debug "No accounts found"
+            return()
+
+    return()
